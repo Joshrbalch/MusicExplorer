@@ -4,11 +4,13 @@ import MusicLibraryPlugin from './main';
 // 1. Define the shape of our settings
 export interface MyPluginSettings {
     collections: string[];
+    storageFolder: string;
 }
 
 // 2. Set the default collections for when the plugin first installs
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-    collections: ['Unsorted', 'Favorites', 'Vinyl', 'Top 10', 'Wishlist']
+    collections: ['Unsorted', 'Favorites', 'Vinyl', 'Top 10', 'Wishlist'],
+    storageFolder: 'Music'
 }
 
 // 3. Build the actual settings menu UI
@@ -24,6 +26,21 @@ export class SampleSettingTab extends PluginSettingTab {
         const {containerEl} = this;
         containerEl.empty();
 
+        containerEl.createEl('h2', { text: 'Music Library Settings' });
+
+        // --- NEW: STORAGE FOLDER SETTING ---
+        new Setting(containerEl)
+            .setName('Storage folder')
+            .setDesc('The folder where album notes will be created.')
+            .addText(text => text
+                .setPlaceholder('Music')
+                .setValue(this.plugin.settings.storageFolder)
+                .onChange(async (value) => {
+                    this.plugin.settings.storageFolder = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // --- EXISTING: COLLECTIONS SETTING ---
         new Setting(containerEl)
             .setName('Library Collections')
             .setDesc('A comma-separated list of your collections.')

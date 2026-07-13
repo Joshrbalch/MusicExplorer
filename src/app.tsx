@@ -117,7 +117,15 @@ export const AlbumLibraryApp: React.FC<AppProps> = ({ app, settings, saveSetting
         const date = album.date ? album.date.substring(0, 4) : "Unknown Year";
         const mbid = album.id; 
         const coverUrl = `https://coverartarchive.org/release/${mbid}/front`;
-        const filename = normalizePath(`${title} - ${artist}.md`);
+        const folderName = settings.storageFolder || "";
+        const filename = normalizePath(`${folderName}/${title} - ${artist}.md`);
+
+        if (folderName) {
+            const folderExists = app.vault.getAbstractFileByPath(folderName);
+            if (!folderExists) {
+                await app.vault.createFolder(folderName);
+            }
+        }
         
         let tracks: any[] = [];
         let genres: string[] = [];
