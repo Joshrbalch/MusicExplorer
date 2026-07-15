@@ -9,7 +9,7 @@ export interface MyPluginSettings {
 
 // 2. Set the default collections for when the plugin first installs
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-    collections: ['Unsorted', 'Favorites', 'Vinyl', 'Top 10', 'Wishlist'],
+    collections: ['Unsorted', 'Favorites', 'To Listen', 'Top 10'],
     storageFolder: 'Music'
 }
 
