@@ -525,7 +525,9 @@ ${tracklistMarkdown}
                     <div className="library-grid">
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "15px" }}>
                             {processedAlbums.map((album) => {
-                                const { file, title, artist, cover, collection, rating } = album;
+                                // CHANGE: Split the basename to get only the title (before the " - ")
+                                const displayTitle = album.file.basename.split(" - ")[0];
+                                const { file, artist, cover, collection, rating } = album;
                                 const isSelected = selectedFiles.some(f => f.path === file.path);
                                 
                                 return (
@@ -555,8 +557,9 @@ ${tracklistMarkdown}
                                         {cover && <img src={cover} alt="Cover" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: "4px", opacity: isManageMode && !isSelected ? 0.6 : 1 }} />}
                                         
                                         <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", margin: "10px 0" }}>
-                                            <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }} title={title}>
-                                                {title}
+                                            {/* CHANGE: Use displayTitle here */}
+                                            <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }} title={displayTitle}>
+                                                {displayTitle}
                                             </h4>
                                             <small style={{ color: "var(--text-muted)", fontSize: "12px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }} title={artist}>
                                                 {artist}
