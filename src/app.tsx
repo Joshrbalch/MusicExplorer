@@ -162,12 +162,47 @@ export const AlbumLibraryApp: React.FC<AppProps> = ({ app, settings, saveSetting
         }
     };
 
+    const getFallbackCover = async (artist: string, albumName: string) => {
+        try {
+            // Ping Apple's public iTunes database
+            const url = `https://itunes.apple.com/search?term=${encodeURIComponent(artist + " " + albumName)}&entity=album&limit=1`;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (data.results && data.results.length > 0) {
+                // iTunes gives a tiny 100x100 image by default. 
+                // This trick modifies the URL to pull a crisp 600x600 version instead!
+                return data.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
+            }
+        } catch (e) {
+            console.error("iTunes fallback failed:", e);
+        }
+        return null;
+    };
+
     const addToLibrary = async (album: any) => {
         const title = album.title.replace(/[\\/:*?"<>|]/g, ""); 
         const artist = album["artist-credit"]?.[0]?.name || "Unknown Artist";
         const date = album.date ? album.date.substring(0, 4) : "Unknown Year";
         const mbid = album.id; 
-        const coverUrl = `https://coverartarchive.org/release/${mbid}/front`;
+        let coverUrl = `https://coverartarchive.org/release/${mbid}/front`;
+
+        try {
+            // We use method: "HEAD" so we only check the status, we don't download the whole image yet
+            const coverCheck = await fetch(coverUrl, { method: "HEAD" });
+            if (!coverCheck.ok) {
+                // If MusicBrainz returns a 404, trigger the iTunes fallback
+                const fallback = await getFallbackCover(artist, title);
+                if (fallback) {
+                    coverUrl = fallback;
+                } else {
+                    coverUrl = ""; // Leave blank so your generic SVG placeholder takes over
+                }
+            }
+        } catch (e) {
+            console.error("Cover check failed", e);
+        }
+
         const folderName = settings.storageFolder || "";
         const filename = normalizePath(`${folderName}/${title} - ${artist}.md`);
 
@@ -554,7 +589,25 @@ ${tracklistMarkdown}
                                             transition: "all 0.1s ease-in-out"
                                         }}
                                     >
-                                        {cover && <img src={cover} alt="Cover" style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: "4px", opacity: isManageMode && !isSelected ? 0.6 : 1 }} />}
+                                        <img 
+                                            src={cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-5L5 21'%3E%3C/path%3E%3C/svg%3E"} 
+                                            alt="Cover" 
+                                            style={{ 
+                                                width: "100%", 
+                                                aspectRatio: "1/1", 
+                                                objectFit: "cover", 
+                                                borderRadius: "4px", 
+                                                opacity: isManageMode && !isSelected ? 0.6 : 1,
+                                                backgroundColor: "var(--background-secondary-alt)", 
+                                                padding: cover ? "0" : "25px" 
+                                            }} 
+                                            onError={(e) => {
+                                                // This fires if a URL is provided but the image is broken (404)
+                                                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpath d='M21 15l-5-5L5 21'%3E%3C/path%3E%3C/svg%3E";
+                                                e.currentTarget.style.padding = "25px";
+                                                e.currentTarget.onerror = null; // Prevents infinite loop if the fallback also somehow fails
+                                            }}
+                                        />
                                         
                                         <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", margin: "10px 0" }}>
                                             {/* CHANGE: Use displayTitle here */}
