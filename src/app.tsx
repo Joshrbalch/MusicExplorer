@@ -355,6 +355,110 @@ ${tracklistMarkdown}
         }
     };
 
+    const refreshAlbum = async (file: TFile) => {
+        try {
+            new Notice(`Refreshing data for ${file.basename}...`);
+            const content = await app.vault.read(file);
+            
+            // 1. Find the MBID from the links section at the bottom of the note
+            const mbidMatch = content.match(/musicbrainz\.org\/release\/([a-zA-Z0-9-]+)/);
+            if (!mbidMatch) {
+                new Notice("Could not find MusicBrainz ID in note. Cannot refresh.");
+                return;
+            }
+            const mbid = mbidMatch[1];
+
+            // 2. Preserve personal local data (Collection, Rating, and the Review text)
+            const cache = app.metadataCache.getFileCache(file);
+            const currentCollection = cache?.frontmatter?.album_collection || "Unsorted";
+            const currentRating = cache?.frontmatter?.rating || "";
+            
+            // Extract everything between "## Review" and the next "---"
+            const reviewMatch = content.match(/## Review([\s\S]*?)---/);
+            const currentReview = reviewMatch 
+                ? reviewMatch[1].trim() 
+                : `### Standout Tracks\n- \n\n### Production Notes\n- \n\n### Overall Thoughts\n- `;
+
+            // 3. Fetch fresh data from MusicBrainz
+            const url = `https://musicbrainz.org/ws/2/release/${mbid}?inc=recordings+genres+release-groups+artists&fmt=json`;
+            const res = await fetch(url, { headers: { "User-Agent": "ObsidianMusicExplorer/1.0.1" }});
+            const album = await res.json();
+
+            const title = album.title;
+            const artist = album["artist-credit"]?.[0]?.name || "Unknown Artist";
+            const date = album.date ? album.date.substring(0, 4) : "Unknown Year";
+            const releaseType = album["release-group"]?.["primary-type"] || "Album";
+
+            // 4. Fetch Cover Art (checking MB first, then iTunes fallback)
+            let coverUrl = `https://coverartarchive.org/release/${mbid}/front`;
+            try {
+                const coverCheck = await fetch(coverUrl, { method: "HEAD" });
+                if (!coverCheck.ok) {
+                    const fallback = await getFallbackCover(artist, title);
+                    coverUrl = fallback || "";
+                }
+            } catch (e) {
+                console.error("Cover check failed", e);
+            }
+
+            // 5. Parse Genres and Tracks
+            let tracks: any[] = [];
+            if (album.media && album.media.length > 0) {
+                tracks = album.media[0].tracks || [];
+            }
+            let genres: string[] = [];
+            if (album.genres && album.genres.length > 0) {
+                genres = album.genres.map((g: any) => g.name);
+            } else if (album["release-group"]?.genres && album["release-group"].genres.length > 0) {
+                genres = album["release-group"].genres.map((g: any) => g.name);
+            }
+            
+            const genresString = genres.length > 0 ? `[${genres.map(g => `"${g}"`).join(", ")}]` : `[]`;
+            const tracklistMarkdown = tracks.length > 0 
+                ? tracks.map((t: any) => `- [ ] ${t.recording?.title || "Unknown Track"}`).join("\n")
+                : "_Tracklist not available._";
+
+            // 6. Rebuild the file content
+            const frontmatter = `---
+cover: "${coverUrl}"
+artist: "${artist}"
+year: "${date}"
+album_collection: "${currentCollection}"
+rating: ${currentRating}
+genres: ${genresString}
+release_type: "${releaseType}"
+---
+# ${title}
+
+## Review
+${currentReview}
+
+---
+
+## Tracklist
+${tracklistMarkdown}
+
+---
+
+## Links
+- [MusicBrainz Database](https://musicbrainz.org/release/${mbid})
+- [Search Spotify](https://open.spotify.com/search/${encodeURIComponent(artist + " " + title)})
+- [Search YouTube](https://www.youtube.com/results?search_query=${encodeURIComponent(artist + " " + title)})
+`;
+
+            // Overwrite the file with the new merged data
+            await app.vault.modify(file, frontmatter);
+            new Notice(`Successfully refreshed ${title}!`);
+            
+            // Force a state update to show new covers/data immediately
+            loadLocalLibrary(); 
+
+        } catch (error) {
+            console.error("Failed to refresh album:", error);
+            new Notice("Failed to refresh album data.");
+        }
+    };
+
     const openAlbumNote = async (file: TFile) => {
         const leaf = app.workspace.getLeaf('tab');
         await leaf.openFile(file);
@@ -387,6 +491,20 @@ ${tracklistMarkdown}
     const handleContextMenu = (e: React.MouseEvent, file: TFile) => {
         e.preventDefault(); 
         const menu = new Menu();
+        
+        // NEW: Refresh Button
+        menu.addItem((item) => {
+            item
+                .setTitle("Refresh Album Data")
+                .setIcon("sync") 
+                .onClick(() => {
+                    refreshAlbum(file);
+                });
+        });
+
+        menu.addSeparator();
+
+        // Existing Delete Button
         menu.addItem((item) => {
             item
                 .setTitle("Delete Album")
@@ -395,6 +513,7 @@ ${tracklistMarkdown}
                     setAlbumToDelete(file);
                 });
         });
+        
         menu.showAtMouseEvent(e.nativeEvent);
     };
 
