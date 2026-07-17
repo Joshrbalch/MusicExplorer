@@ -1,7 +1,7 @@
 {
 	"id": "music-explorer",
 	"name": "Music Explorer",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"minAppVersion": "1.0.0",
 	"description": "Allows you to explore and manage your music library within Obsidian.",
 	"author": "Warts",
