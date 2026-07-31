@@ -80,6 +80,16 @@ export const AlbumLibraryApp: React.FC<AppProps> = ({ app, settings, saveSetting
         new Set(allMappedAlbums.flatMap(album => album.genres))
     ).filter(Boolean).sort();
 
+    // Extract every unique collection currently applied to any album in your vault
+    const derivedCollections = Array.from(
+        new Set(allMappedAlbums.map(album => album.collection))
+    ).filter(Boolean);
+
+    // Merge the derived collections with your settings collections, removing any duplicates
+    const allAvailableCollections = Array.from(
+        new Set(["Unsorted", ...settings.collections, ...derivedCollections])
+    ).sort();
+
     const processedAlbums = allMappedAlbums
         .filter(album => {
             const matchesSearch = !localSearchQuery || album.title.toLowerCase().includes(localSearchQuery.toLowerCase()) || album.artist.toLowerCase().includes(localSearchQuery.toLowerCase());
@@ -467,9 +477,9 @@ ${tracklistMarkdown}
     const handleAddCollection = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmed = newColInput.trim();
-        if (!trimmed || collections.includes(trimmed)) return;
+        if (!trimmed || allAvailableCollections.includes(trimmed)) return;
         
-        const updated = [...collections, trimmed];
+        const updated = [...allAvailableCollections, trimmed];
         setCollections(updated); 
         settings.collections = updated; 
         await saveSettings(); 
@@ -477,10 +487,20 @@ ${tracklistMarkdown}
     };
 
     const handleDeleteCollection = async (colName: string) => {
-        const updated = collections.filter(c => c !== colName);
+        // IMPORTANT: Filter 'collections' state, NOT 'allAvailableCollections'
+        const updated = collections.filter(c => c !== colName); 
+        
         setCollections(updated);
         settings.collections = updated;
         await saveSettings();
+
+        // Warn if files are keeping it alive
+        const stillInUse = allMappedAlbums.some(album => album.collection === colName);
+        if (stillInUse) {
+            new Notice(`Removed from settings, but "${colName}" is still applied to albums.`);
+        } else {
+            new Notice(`Collection "${colName}" deleted.`);
+        }
     };
 
     const closeAddModal = () => {
@@ -996,7 +1016,7 @@ ${tracklistMarkdown}
                         </div>
                         
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
-                            {collections.map(col => (
+                            {allAvailableCollections.filter(c => c !== "Unsorted").map(col => (
                                 <div key={col} style={{ backgroundColor: "var(--background-modifier-active-hover)", padding: "4px 8px", borderRadius: "4px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                                     {col}
                                     <button 
