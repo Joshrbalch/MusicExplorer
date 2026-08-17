@@ -35,7 +35,7 @@ export const AlbumLibraryApp: React.FC<AppProps> = ({ app, settings, saveSetting
     const [loading, setLoading] = useState(false);
     
     // 4. UI/Modal State
-    const [collections, setCollections] = useState<string[]>(settings.collections);
+    const collections = [...settings.collections].sort((a, b) => a.localeCompare(b));
     const [newColInput, setNewColInput] = useState("");
     const [isColModalOpen, setIsColModalOpen] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -478,23 +478,20 @@ ${tracklistMarkdown}
         e.preventDefault();
         const trimmed = newColInput.trim();
         if (!trimmed || allAvailableCollections.includes(trimmed)) return;
-        
-        const updated = [...allAvailableCollections, trimmed];
-        setCollections(updated); 
-        settings.collections = updated; 
-        await saveSettings(); 
+
+        // Use settings.collections here, NOT allAvailableCollections —
+        // allAvailableCollections also includes derived/album-only collections
+        // (like stray typos in frontmatter), which would otherwise leak
+        // permanently into your saved settings.
+        settings.collections = [...settings.collections, trimmed];
+        await saveSettings();
         setNewColInput("");
     };
 
     const handleDeleteCollection = async (colName: string) => {
-        // IMPORTANT: Filter 'collections' state, NOT 'allAvailableCollections'
-        const updated = collections.filter(c => c !== colName); 
-        
-        setCollections(updated);
-        settings.collections = updated;
+        settings.collections = settings.collections.filter(c => c !== colName);
         await saveSettings();
 
-        // Warn if files are keeping it alive
         const stillInUse = allMappedAlbums.some(album => album.collection === colName);
         if (stillInUse) {
             new Notice(`Removed from settings, but "${colName}" is still applied to albums.`);
