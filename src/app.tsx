@@ -479,13 +479,17 @@ ${tracklistMarkdown}
         const trimmed = newColInput.trim();
         if (!trimmed || allAvailableCollections.includes(trimmed)) return;
 
-        // Use settings.collections here, NOT allAvailableCollections —
-        // allAvailableCollections also includes derived/album-only collections
-        // (like stray typos in frontmatter), which would otherwise leak
-        // permanently into your saved settings.
+        const previous = settings.collections;
         settings.collections = [...settings.collections, trimmed];
-        await saveSettings();
-        setNewColInput("");
+        setNewColInput("");  // update UI immediately, don't wait on the save
+
+        try {
+            await saveSettings();
+        } catch (error) {
+            console.error("Failed to save new collection:", error);
+            settings.collections = previous; // roll back on failure
+            new Notice("Failed to save new collection — check console.");
+        }
     };
 
     const handleDeleteCollection = async (colName: string) => {
